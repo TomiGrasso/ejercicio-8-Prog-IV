@@ -24,7 +24,7 @@ public class UsuarioService {
     public void crear(RegisterRequestDTO dto) {
         Usuario usuario = toUsuarioFromRegisterDTO(dto);
         List<String> roles = new ArrayList<>();
-        roles.add("ROLE_PACIENTE");
+        roles.add("ROLE_LECTOR");
         usuario.setRoles(roles);
 
         usuarioStore.guardarUsuario(usuario);

@@ -1,39 +1,83 @@
 package com.unidad5.ejercicio8.security;
 
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@EnableWebSecurity
 public final class SecurityConfig {
 
-    private SecurityConfig() {
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    private SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
-    /*
-     * GUIA DE RESOLUCION
-     *
-     * Este archivo deberia concentrar la configuracion principal de Spring Security.
-     *
-     * Pasos sugeridos:
-     * 1. Anotar la clase con @Configuration.
-     * 2. Habilitar seguridad web y seguridad a nivel metodo si el ejercicio lo pide.
-     * 3. Declarar un bean SecurityFilterChain.
-     * 4. Desactivar CSRF si la API es stateless.
-     * 5. Configurar SessionCreationPolicy.STATELESS.
-     * 6. Declarar que /api/auth/register y /api/auth/login sean publicos.
-     * 7. Restringir /api/libros y /api/prestamos por rol.
-     * 8. Registrar el filtro JWT antes de UsernamePasswordAuthenticationFilter.
-     * 9. Configurar el manejo de errores 401 y 403.
-     *
-     * BEANS AUXILIARES
-     * En esta misma clase, o en una clase auxiliar si el docente lo prefiere, se suelen
-     * declarar:
-     * - PasswordEncoder
-     * - AuthenticationManager
-     * - AuthenticationProvider
-     *
-     * RESPUESTAS 401 Y 403
-     * Para mantener el ejercicio simple, no es obligatorio separar esas piezas en clases
-     * propias. Se puede resolver dentro de exceptionHandling(...) usando lambdas para:
-     * - devolver 401 si el usuario no esta autenticado
-     * - devolver 403 si el usuario esta autenticado pero no tiene permisos
-     *
-     * En esta entrega no se implementa seguridad real.
-     */
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
+        http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,"/api/libros").authenticated()
+                        .requestMatchers(HttpMethod.POST,"/api/libros").hasAnyRole("BIBLIOTECARIO","ADMIN")
+                        .requestMatchers(HttpMethod.DELETE,"/api/libros/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST,"/api/prestamos").hasRole("LECTOR")
+                        .requestMatchers(HttpMethod.GET,"/api/prestamos/mis-prestamos").hasRole("LECTOR")
+                        .requestMatchers(HttpMethod.GET,"/api/prestamos").hasAnyRole("BIBLIOTECARIO","ADMIN")
+                        .requestMatchers(HttpMethod.PUT,"/api/prestamos/{id}/**").hasRole("BIBLIOTECARIO")
+                        .anyRequest().authenticated()
+                );
+                http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+                http.exceptionHandling(exception -> exception
+                        // ERROR 401
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("""
+                                {
+                                    "error": "No autenticado"
+                                }
+                            """);
+                        })
+
+                        // ERROR 403
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("""
+                                {
+                                    "error": "Sin permisos"
+                                }
+                            """);
+                        })
+                );
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder(){
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config)
+            throws Exception{
+        return config.getAuthenticationManager();
+    }
+
 }

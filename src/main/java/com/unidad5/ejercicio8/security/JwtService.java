@@ -59,20 +59,3 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 }
-/*
- * GUIA DE RESOLUCION
- *
- * Responsabilidades esperadas:
- * - Generar el token JWT al hacer login.
- * - Extraer el username desde el token.
- * - Validar expiracion y firma.
- *
- * Metodos que normalmente se agregan:
- * - generateToken(UserDetails userDetails)
- * - extractUsername(String token)
- * - isTokenValid(String token, UserDetails userDetails)
- *
- * Tambien suele leerse desde application.properties:
- * - secret
- * - expirationMs
- */
