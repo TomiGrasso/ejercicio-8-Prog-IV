@@ -1,23 +1,73 @@
 package com.unidad5.ejercicio8.security;
 
-public final class JwtAuthenticationFilter {
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
-    private JwtAuthenticationFilter() {
+import java.io.IOException;
+
+@Component
+public final class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+
+    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
     }
 
-    /*
-     * GUIA DE RESOLUCION
-     *
-     * Este archivo normalmente extiende OncePerRequestFilter.
-     *
-     * Flujo habitual:
-     * 1. Leer header Authorization.
-     * 2. Verificar que empiece con "Bearer ".
-     * 3. Extraer token.
-     * 4. Obtener username con JwtService.
-     * 5. Cargar UserDetails.
-     * 6. Validar token.
-     * 7. Si es valido, guardar Authentication en SecurityContextHolder.
-     * 8. Continuar con filterChain.doFilter(...).
-     */
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String header = request.getHeader("Authorization");
+
+        if (header == null || !header.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = header.substring(7);
+
+        if (!jwtService.validarToken(token)){
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String username = jwtService.obtenerUsername(token);
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                );
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        filterChain.doFilter(request, response);
+    }
 }
+/*
+ * GUIA DE RESOLUCION
+ *
+ * Este archivo normalmente extiende OncePerRequestFilter.
+ *
+ * Flujo habitual:
+ * 1. Leer header Authorization.
+ * 2. Verificar que empiece con "Bearer ".
+ * 3. Extraer token.
+ * 4. Obtener username con JwtService.
+ * 5. Cargar UserDetails.
+ * 6. Validar token.
+ * 7. Si es valido, guardar Authentication en SecurityContextHolder.
+ * 8. Continuar con filterChain.doFilter(...).
+ */
